@@ -111,13 +111,13 @@ async def handle_file_upload(client: Client, message: Message, session: Dict[str
             await message.reply_text("يرجى إرسال ملف Python (.py) أو أرشيف ZIP فقط.")
     else:
         await message.reply_text("يرجى إرسال ملف Python (.py) أو أرشيف ZIP.")
-
 async def download_and_process_file(client: Client, message: Message, session: Dict[str, Any]):
     user_id = message.from_user.id
     temp_dir = session['temp_dir']
     await message.reply_text("جاري تنزيل الملف...")
     file_path = await message.download(file_name=os.path.join(temp_dir, message.document.file_name))
     session['file_path'] = file_path
+
     if session['file_type'] == 'python':
         with open(file_path, 'r', encoding='utf-8') as f:
             code = f.read()
@@ -127,48 +127,55 @@ async def download_and_process_file(client: Client, message: Message, session: D
             req_file = os.path.join(temp_dir, "requirements.txt")
             create_requirements_file(requirements, req_file)
             await message.reply_text(
-                f"تم اكتشاف المتطلبات التالية في الكود:\n" + 
+                f"تم اكتشاف المتطلبات التالية في الكود:\n" +
                 "\n".join(f"• {req}" for req in requirements) +
                 "\n\nهل تريد تثبيت هذه المتطلبات؟",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("نعم", callback_data="req_yes"),
-                    [InlineKeyboardButton("لا", callback_data="req_no")],
-                    [InlineKeyboardButton("إلغاء", callback_data="cancel")]
+                    [
+                        InlineKeyboardButton("نعم", callback_data="req_yes"),
+                        InlineKeyboardButton("لا", callback_data="req_no"),
+                        InlineKeyboardButton("إلغاء", callback_data="cancel")
+                    ]
                 ])
             )
         else:
             session['step'] = 'awaiting_python_version'
             await message.reply_text("لم يتم العثور على متطلبات في الكود. ما إصدار Python الذي تريد استخدامه؟ (مثال: python3.11)")
+
     elif session['file_type'] == 'zip':
         await message.reply_text("جاري فك ضغط الأرشيف...")
         extract_path = os.path.join(temp_dir, "extracted")
         os.makedirs(extract_path, exist_ok=True)
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             zip_ref.extractall(extract_path)
+
         req_file = None
         for root, dirs, files in os.walk(extract_path):
             if "requirements.txt" in files:
                 req_file = os.path.join(root, "requirements.txt")
                 break
+
         if req_file:
             with open(req_file, 'r') as f:
                 requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
             session['requirements'] = requirements
             await message.reply_text(
-                f"تم العثور على ملف المتطلبات يحتوي على:\n" + 
+                f"تم العثور على ملف المتطلبات يحتوي على:\n" +
                 "\n".join(f"• {req}" for req in requirements[:10]) +
                 ("\n..." if len(requirements) > 10 else "") +
                 "\n\nهل تريد تثبيت هذه المتطلبات؟",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("نعم", callback_data="req_yes"),
-                    [InlineKeyboardButton("لا", callback_data="req_no")],
-                    [InlineKeyboardButton("إلغاء", callback_data="cancel")]
+                    [
+                        InlineKeyboardButton("نعم", callback_data="req_yes"),
+                        InlineKeyboardButton("لا", callback_data="req_no"),
+                        InlineKeyboardButton("إلغاء", callback_data="cancel")
+                    ]
                 ])
             )
         else:
             session['step'] = 'awaiting_python_version'
             await message.reply_text("لم يتم العثور على ملف requirements.txt. ما إصدار Python الذي تريد استخدامه؟ (مثال: python3.11)")
-
+ 
 @app.on_callback_query()
 async def handle_callback_query(client: Client, callback_query):
     user_id = callback_query.from_user.id
