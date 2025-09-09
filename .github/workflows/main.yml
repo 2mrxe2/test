@@ -1,0 +1,53 @@
+name: FINAL UserBot (Every 6h)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+concurrency:
+  group: final-userbot
+  cancel-in-progress: false
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout main code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyrogram tgcrypto
+
+      - name: Download bot data from storage branch
+        run: |
+          if git fetch origin bot-data-storage 2>/dev/null; then
+            git checkout origin/bot-data-storage -- . 2>/dev/null || echo "No previous data"
+          else
+            echo "No storage branch found"
+          fi
+
+      - name: Run Telegram Bot
+        run: python bot.py
+
+      - name: Save bot data to storage branch
+        if: always()
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git checkout -b bot-data-storage 2>/dev/null || git checkout bot-data-storage
+          git add --all
+          git commit -m "🤖 Auto-update bot data - $(date +'%Y-%m-%d %H:%M:%S')" || echo "No changes to commit"
+          git push origin bot-data-storage --force || echo "Failed to push data"
